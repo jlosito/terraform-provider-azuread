@@ -30,7 +30,62 @@ func applicationPasswordResource() *schema.Resource {
 			return err
 		}),
 
-		Schema: aadgraph.PasswordResourceSchema("application_object_id"),
+		Schema: map[string]*schema.Schema{
+			"application_object_id": {
+				Type:             schema.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validate.UUID,
+			},
+
+			"key_id": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Computed:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validate.UUID,
+			},
+
+			"description": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				ForceNew: true,
+			},
+
+			"value": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				Sensitive:    true,
+				ValidateFunc: validation.StringLenBetween(1, 863), // Encrypted secret cannot be empty and can be at most 1024 bytes.
+			},
+
+			"start_date": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsRFC3339Time,
+			},
+
+			"end_date": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ExactlyOneOf: []string{"end_date_relative"},
+				ValidateFunc: validation.IsRFC3339Time,
+			},
+
+			"end_date_relative": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				ForceNew:         true,
+				ExactlyOneOf:     []string{"end_date"},
+				ValidateDiagFunc: validate.NoEmptyStrings,
+			},
+		},
 
 		SchemaVersion: 1,
 		StateUpgraders: []schema.StateUpgrader{
@@ -60,6 +115,15 @@ func applicationPasswordResourceCreate(ctx context.Context, d *schema.ResourceDa
 
 	tf.LockByName(resourceApplicationName, id.ObjectId)
 	defer tf.UnlockByName(resourceApplicationName, id.ObjectId)
+
+	// HACK: since moving this resource to MS Graph is a breaking change, this hack waits for the AAD Graph API to see
+	// and return the application before attempting to manage its passwords.
+	_, err = aadgraph.WaitForCreationReplication(ctx, 5 * time.Minute, func() (interface{}, error) {
+		return client.Get(ctx, objectId)
+	})
+	if err != nil {
+		return tf.ErrorDiagF(err, "Application was not found with object ID: %q", objectId)
+	}
 
 	existingCreds, err := client.ListPasswordCredentials(ctx, id.ObjectId)
 	if err != nil {

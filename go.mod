@@ -13,3 +13,5 @@ require (
 )
 
 go 1.14
+
+replace github.com/manicminer/hamilton => /Users/tom/go/src/github.com/manicminer/hamilton

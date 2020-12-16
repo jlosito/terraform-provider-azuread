@@ -30,7 +30,62 @@ func servicePrincipalPasswordResource() *schema.Resource {
 			return err
 		}),
 
-		Schema: aadgraph.PasswordResourceSchema("service_principal_id"),
+		Schema: map[string]*schema.Schema{
+			"service_principal_id": {
+				Type:             schema.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validate.UUID,
+			},
+
+			"key_id": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Computed:         true,
+				ForceNew:         true,
+				ValidateDiagFunc: validate.UUID,
+			},
+
+			"description": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				ForceNew: true,
+			},
+
+			"value": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				Sensitive:    true,
+				ValidateFunc: validation.StringLenBetween(1, 863), // Encrypted secret cannot be empty and can be at most 1024 bytes.
+			},
+
+			"start_date": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.IsRFC3339Time,
+			},
+
+			"end_date": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ForceNew:     true,
+				ExactlyOneOf: []string{"end_date_relative"},
+				ValidateFunc: validation.IsRFC3339Time,
+			},
+
+			"end_date_relative": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				ForceNew:         true,
+				ExactlyOneOf:     []string{"end_date"},
+				ValidateDiagFunc: validate.NoEmptyStrings,
+			},
+		},
 
 		SchemaVersion: 1,
 		StateUpgraders: []schema.StateUpgrader{
@@ -45,7 +100,6 @@ func servicePrincipalPasswordResource() *schema.Resource {
 
 func servicePrincipalPasswordResourceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*clients.Client).ServicePrincipals.AadClient
-
 	objectId := d.Get("service_principal_id").(string)
 
 	cred, err := aadgraph.PasswordCredentialForResource(d)

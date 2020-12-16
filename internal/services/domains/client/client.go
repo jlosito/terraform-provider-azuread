@@ -2,11 +2,14 @@ package client
 
 import (
 	"github.com/Azure/azure-sdk-for-go/services/graphrbac/1.6/graphrbac"
+	"github.com/manicminer/hamilton/clients"
+
 	"github.com/terraform-providers/terraform-provider-azuread/internal/common"
 )
 
 type Client struct {
 	AadClient *graphrbac.DomainsClient
+	MsClient  *clients.DomainsClient
 }
 
 func NewClient(o *common.ClientOptions) *Client {
@@ -15,5 +18,6 @@ func NewClient(o *common.ClientOptions) *Client {
 
 	return &Client{
 		AadClient: &aadClient,
+		MsClient:  clients.NewDomainsClient(o.MsGraphAuthorizer, o.TenantID),
 	}
 }
